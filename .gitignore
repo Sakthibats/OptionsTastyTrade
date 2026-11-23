@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.wrangler/
+coverage/
+*.log
+.DS_Store
+
+# Secrets — never commit. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Personal Claude Code overrides
+.claude/settings.local.json

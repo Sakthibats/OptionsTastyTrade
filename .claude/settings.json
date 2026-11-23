@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run test)",
+      "Bash(npm run test:*)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run build)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.development)",
+      "Read(./.env.production)",
+      "Read(./.env.*.local)",
+      "Read(./.dev.vars)",
+      "Read(./.dev.vars.*)",
+      "Read(./**/.env)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Edit(./.env.development)",
+      "Edit(./.env.production)",
+      "Edit(./.env.*.local)",
+      "Edit(./.dev.vars)",
+      "Edit(./.dev.vars.*)",
+      "Edit(./**/.env)",
+      "Bash(wrangler secret put:*)",
+      "Bash(npx wrangler secret put:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(npm run deploy:*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "denyRead": [
+        "./.env",
+        "./.env.local",
+        "./.env.development",
+        "./.env.production",
+        "./.dev.vars"
+      ]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-secrets.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

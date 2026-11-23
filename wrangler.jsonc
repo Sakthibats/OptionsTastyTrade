@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "options-analytics",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-11-01",
+  "observability": { "enabled": true },
+  "assets": {
+    // Static SPA served free from Cloudflare's edge; only /api/* invokes the Worker.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "TT_API_BASE": "https://api.tastyworks.com",
+    "USER_AGENT": "options-analytics/0.1",
+    // Production requires Cloudflare Access in front of the app. See README "Deploy".
+    "AUTH_MODE": "access",
+    "ACCESS_TEAM_DOMAIN": "", // e.g. "yourteam.cloudflareaccess.com"
+    "ACCESS_AUD": ""          // Application Audience (AUD) tag from the Access app
+  }
+  // Secrets (set with `npx wrangler secret put <NAME>`, never in this file):
+  //   TT_CLIENT_SECRET, TT_REFRESH_TOKEN, TT_CLIENT_ID (optional)
+}

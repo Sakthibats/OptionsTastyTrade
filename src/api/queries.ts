@@ -1,22 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { DEMO, demoAccounts, demoChain, demoMetrics, demoPositions, demoSnapshot } from "../demo";
+import { DEMO, demoChain, demoMetrics, demoSnapshot } from "../demo";
 import { getJson, ttGet } from "./client";
-import type { CustomerAccount, Items, MarketDataSnapshot, MarketMetric, NestedOptionChain, Position, QuoteToken, YahooQuote } from "./types";
-
-export const useAccounts = () =>
-  useQuery({
-    queryKey: ["accounts"],
-    queryFn: () => (DEMO ? demoAccounts : ttGet<Items<CustomerAccount>>("/customers/me/accounts").then((d) => d.items)),
-    staleTime: 60 * 60_000,
-  });
-
-export const usePositions = (accountNumber: string | undefined) =>
-  useQuery({
-    queryKey: ["positions", accountNumber],
-    queryFn: () => (DEMO ? demoPositions() : ttGet<Items<Position>>(`/accounts/${accountNumber}/positions`).then((d) => d.items)),
-    enabled: !!accountNumber,
-    refetchInterval: 60_000,
-  });
+import type { Items, MarketDataSnapshot, MarketMetric, NestedOptionChain, QuoteToken, YahooQuote } from "./types";
 
 export const useNestedChain = (symbol: string | undefined) =>
   useQuery({

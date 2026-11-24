@@ -3,9 +3,6 @@ import { isAllowed } from "./proxy";
 
 describe("tastytrade proxy allowlist", () => {
   it.each([
-    "/customers/me/accounts",
-    "/accounts/5WX12345/positions",
-    "/accounts/5WX12345/balances",
     "/option-chains/AAPL/nested",
     "/option-chains/BRK.B/compact",
     "/market-metrics",
@@ -22,6 +19,10 @@ describe("tastytrade proxy allowlist", () => {
     ["GET", "/accounts/5WX12345/positions/../orders"],
     ["GET", "/oauth/token"],
     ["GET", "/customers/me"],
+    ["GET", "/customers/me/accounts"],
+    ["GET", "/accounts/5WX12345/positions"],
+    ["GET", "/accounts/5WX12345/balances"],
+    ["GET", "/accounts/5WX12345/transactions"],
   ])("blocks %s %s", (method, path) => {
     expect(isAllowed(method, path)).toBe(false);
   });

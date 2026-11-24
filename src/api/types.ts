@@ -8,30 +8,6 @@ export interface Items<T> {
   items: T[];
 }
 
-export interface CustomerAccount {
-  account: {
-    "account-number": string;
-    nickname?: string;
-    "account-type-name"?: string;
-    "margin-or-cash"?: string;
-  };
-  "authority-level": string;
-}
-
-export interface Position {
-  "account-number": string;
-  symbol: string;
-  "instrument-type": "Equity" | "Equity Option" | "Future" | "Future Option" | string;
-  "underlying-symbol": string;
-  quantity: number | string;
-  "quantity-direction": "Long" | "Short" | "Zero";
-  "average-open-price": number | string;
-  "close-price"?: number | string;
-  multiplier: number | string;
-  "expires-at"?: string;
-  "streamer-symbol"?: string;
-}
-
 export interface NestedStrike {
   "strike-price": string;
   call: string;

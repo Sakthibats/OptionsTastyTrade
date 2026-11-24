@@ -36,6 +36,36 @@ export function aroundSpot<T>(items: T[], strikeOf: (t: T) => number, spot: numb
   return items.slice(start, start + 2 * n + 1);
 }
 
+const rowsCache = new WeakMap<NestedExpiration, ChainRow[]>();
+/** `toRows`, memoized per expiration object (the query cache keeps them stable). */
+export function rowsOf(exp: NestedExpiration): ChainRow[] {
+  let r = rowsCache.get(exp);
+  if (!r) rowsCache.set(exp, (r = toRows(exp)));
+  return r;
+}
+
+/**
+ * Strikes for the strike ladder: everything within ±`sigmas` of spot (lognormal,
+ * using `vol`), never fewer than `minEachSide` strikes on each side, thinned evenly
+ * to at most `max` rows. `keep` (the selected strike) always survives thinning.
+ */
+export function ladderRows(rows: ChainRow[], spot: number, vol: number, t: number, opts: { sigmas?: number; minEachSide?: number; max?: number; keep?: number } = {}): ChainRow[] {
+  const { sigmas = 2.5, minEachSide = 8, max = 41, keep } = opts;
+  if (!rows.length) return [];
+  const w = sigmas * vol * Math.sqrt(Math.max(t, 1 / 365));
+  const lo = spot * Math.exp(-w);
+  const hi = spot * Math.exp(w);
+  const near = aroundSpot(rows, (r) => r.strike, spot, minEachSide);
+  const kept = keep != null ? rows.find((r) => r.strike === keep) : undefined;
+  const inRange = rows.filter((r) => (r.strike >= lo && r.strike <= hi) || near.includes(r) || r === kept);
+  if (inRange.length <= max) return inRange;
+  const step = inRange.length / max;
+  const picked = new Set<ChainRow>();
+  for (let i = 0; i < max; i++) picked.add(inRange[Math.min(inRange.length - 1, Math.round(i * step))]!);
+  if (kept) picked.add(kept);
+  return inRange.filter((r) => picked.has(r));
+}
+
 export const nearTheMoney = (rows: ChainRow[], spot: number | undefined, n = 15) =>
   aroundSpot(rows, (r) => r.strike, spot, n);
 

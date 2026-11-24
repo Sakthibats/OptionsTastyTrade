@@ -30,10 +30,11 @@ browser (src/)  ──/api/tt/*──▶  Worker (worker/)  ──Bearer──�
 - `worker/index.ts`: routes. Only `/api/*` runs the Worker. Static files are served
   directly by Cloudflare (`run_worker_first` in `wrangler.jsonc`).
 - `worker/tastytrade-auth.ts`: OAuth2 refresh-token → 15-min access token, cached per isolate.
-- `worker/proxy.ts`: **GET-only allowlist** of tastytrade paths. Order/trade
-  endpoints are intentionally unreachable. Adding a non-GET or order endpoint is a
-  security decision: ask the user first, and never do it as a side effect of
-  another task.
+- `worker/proxy.ts`: **GET-only allowlist** of tastytrade market-data paths. Order/trade
+  endpoints are intentionally unreachable, and so is account data (positions,
+  balances, transactions), because the app doesn't use it. Adding a non-GET, order or
+  account endpoint is a security decision: ask the user first, and never do it as a
+  side effect of another task.
 - `worker/yahoo.ts`: `/api/yahoo/quote/:symbol`, the last-resort underlying price
   (unofficial Yahoo chart API, no CORS, so it has to be proxied). Only a validated
   ticker leaves the Worker.
@@ -46,13 +47,27 @@ browser (src/)  ──/api/tt/*──▶  Worker (worker/)  ──Bearer──�
 - `src/analytics/`: pure functions (Black-Scholes, greeks, IV, chain transforms).
   Put heavy preprocessing here, not in components. Keep it pure and unit-tested.
 - `src/streaming/`: DXLink WebSocket client (COMPACT format) + `useMarketData` hook.
-- `src/pages/`: UI. `src/components/ui.tsx` holds the shared controls (segmented,
-  stat tile, heat legend, tooltip).
+- `src/analytics/payoff.ts`: position math on `Leg[]` (multi-leg ready): expiry and
+  what-if P/L, exact breakevens, max profit/loss, lognormal probability of profit,
+  capital basis, and `strikeLadder()` (breakeven distance, POP, return per strike).
+- `src/analytics/guide.ts`: the **prescriptive** strike guide (rules of thumb by risk
+  appetite: sellers 16/30/40Δ, buyers 70/50/30Δ), `strikeForDelta` formula, setup
+  checks (IV rank, DTE) and an exit plan. In the UI, anything prescriptive uses the
+  magenta `--rx*` colors and the "Guide" badge; market data stays blue/neutral. Keep
+  that split when adding features.
+- `src/analytics/optionQuote.ts`: merges a contract's DXLink events into one quote
+  (local IV/greeks fallback) and picks the entry price (mid / natural / theoretical).
+- `src/hooks.ts`: `useUnderlying` (spot fallback chain incl. Yahoo), `useSession`, `useWidth`.
+- `src/pages/`: `OptionChainPage` (chain + heatmap) and `StrategyPage` (four single-leg
+  strategies, payoff chart, trade ticket, strike ladder). The symbol lives in `App`.
+- `src/components/`: `ui.tsx` (shared controls), `QuoteCard`, `PayoffChart`,
+  `StrikeLadder`, and `chart.ts` (scales/ticks; plain SVG, no chart library).
 - `src/analytics/metrics.ts`: what the heatmap can color by, the heat scale (a
   6-step one-hue blue ramp with APCA-picked ink), and formatters.
 - `src/demo.ts`: `?demo` mode with simulated chain and stream data. Use it for UI
   work and screenshots, never real account data. Headless check:
   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --screenshot=… --window-size=1400,900 "http://localhost:5173/?demo"`
+  (`?demo&page=strategy&strategy=long-call` opens the Strategy tab).
 
 ## Conventions
 

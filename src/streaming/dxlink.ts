@@ -7,8 +7,8 @@
  * FEED_SUBSCRIPTION, plus KEEPALIVE every 30s.
  * Docs: https://developer.tastytrade.com/docs/guides/stream-market-data/
  *
- * Not yet verified against a live feed — check field names and the FEED_DATA
- * layout on first run and adjust EVENT_FIELDS / parseCompact.
+ * Verified against tastytrade's live feed (Nov 2026): the server echoes these
+ * EVENT_FIELDS in FEED_CONFIG and FEED_DATA matches parseCompact's layout.
  */
 
 export type EventType = "Quote" | "Trade" | "Greeks" | "Summary" | "Profile";

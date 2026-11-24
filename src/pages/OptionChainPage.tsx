@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
-import { useMarketMetrics, useNestedChain, useSnapshot, useYahooQuote } from "../api/queries";
-import type { NestedExpiration } from "../api/types";
-import { greeks, impliedVol, yearsToExpiry } from "../analytics/blackScholes";
-import { buildLattice, nearTheMoney, toRows, type ChainRow, type Lattice } from "../analytics/chain";
-import { resolveSpot, usEquitySession, type Session, type SessionInfo, type Spot } from "../analytics/market";
-import { heatScale, heatStyle, METRICS, metricValue, num, pct, price, type HeatScale, type MetricKey } from "../analytics/metrics";
+import { useMarketMetrics, useNestedChain } from "../api/queries";
+import { yearsToExpiry } from "../analytics/blackScholes";
+import { buildLattice, nearTheMoney, rowsOf, type ChainRow, type Lattice } from "../analytics/chain";
+import type { Session } from "../analytics/market";
+import { formatDate, formatStrike, heatScale, heatStyle, METRICS, metricValue, num, pct, price, type HeatScale, type MetricKey } from "../analytics/metrics";
+import { optionQuote, type OptionQuote } from "../analytics/optionQuote";
 import { ErrorBox } from "../components/ErrorBox";
-import { Field, Flash, HeatLegend, Meter, RangeBar, Segmented, SessionPill, Stat, StatusPill, useTooltip, type TipContent } from "../components/ui";
+import { QuoteCard } from "../components/QuoteCard";
+import { ExpirationSelect, Field, Flash, HeatLegend, Meter, Segmented, RefreshButton, SessionPill, Stat, StatusPill, SymbolSearch, useTooltip, type TipContent } from "../components/ui";
+import { useNow, useRefresh, useSession, useUnderlying } from "../hooks";
 import type { EventType, MarketEvent, Subscription } from "../streaming/dxlink";
 import { useMarketData } from "../streaming/useMarketData";
 
@@ -27,18 +29,13 @@ const CHAIN_STRIKES_EACH_SIDE = 12;
 const HEATMAP_STRIKES_EACH_SIDE = 12;
 const HEATMAP_EXPIRATIONS = 8;
 const CHAIN_EVENTS: EventType[] = ["Quote", "Greeks", "Summary", "Trade"];
-/** Used only for locally estimated greeks when the stream sends none. */
-const RISK_FREE_RATE = 0.045;
-/** Wait this long for a streamed/snapshot price before asking Yahoo. */
-const YAHOO_FALLBACK_DELAY_MS = 4000;
 
-export function OptionChainPage() {
-  const [input, setInput] = useState("SPY");
-  const [symbol, setSymbol] = useState("SPY");
+export function OptionChainPage({ symbol, onSymbol }: { symbol: string; onSymbol: (s: string) => void }) {
   const [view, setView] = useState<View>(() => (new URLSearchParams(location.search).get("view") === "heatmap" ? "heatmap" : "chain"));
   const [metric, setMetric] = useState<MetricKey>("openInterest");
   const [side, setSide] = useState<Side>("call");
   const [expIndex, setExpIndex] = useState(0);
+  useEffect(() => setExpIndex(0), [symbol]);
 
   const chain = useNestedChain(symbol);
   const metrics = useMarketMetrics(symbol ? [symbol] : []);
@@ -49,20 +46,15 @@ export function OptionChainPage() {
   // One DXLink connection for the page. Which contracts to subscribe to depends on
   // spot, and spot comes from the stream, so the list lives in state.
   const [subs, setSubs] = useState<Subscription[]>([]);
-  const { status, latest } = useMarketData(subs);
+  const { status, latest, lastUpdate, reconnect } = useMarketData(subs);
+  const { refresh, busy } = useRefresh(reconnect);
+  const now = useNow();
 
-  // Underlying price: live quote → last trade → REST snapshot → Yahoo Finance.
-  const snapshot = useSnapshot(symbol);
-  const uQuote = latest.get(`Quote:${symbol}`);
-  const uTrade = latest.get(`Trade:${symbol}`);
-  const uSummary = latest.get(`Summary:${symbol}`);
-  const withoutYahoo = resolveSpot(uQuote, uTrade, uSummary, snapshot.data, undefined);
-  const needYahoo = useStuck(withoutYahoo.price == null, YAHOO_FALLBACK_DELAY_MS, symbol);
-  const yahoo = useYahooQuote(symbol, needYahoo);
-  const spotInfo = yahoo.data ? resolveSpot(uQuote, uTrade, uSummary, snapshot.data, yahoo.data) : withoutYahoo;
+  const underlying = useUnderlying(symbol, latest);
+  const spotInfo = underlying.spot;
   const spot = spotInfo.price;
 
-  const rows = useMemo(() => (expiration ? nearTheMoney(toRowsCached(expiration), spot, CHAIN_STRIKES_EACH_SIDE) : []), [expiration, spot]);
+  const rows = useMemo(() => (expiration ? nearTheMoney(rowsOf(expiration), spot, CHAIN_STRIKES_EACH_SIDE) : []), [expiration, spot]);
   const lattice = useMemo(
     () => buildLattice(expirations.slice(0, HEATMAP_EXPIRATIONS), spot, HEATMAP_STRIKES_EACH_SIDE),
     [expirations, spot],
@@ -87,34 +79,9 @@ export function OptionChainPage() {
   return (
     <div className="page">
       <div className="toolbar">
-        <form
-          className="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const next = input.trim().toUpperCase();
-            if (next) {
-              setSymbol(next);
-              setExpIndex(0);
-            }
-          }}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden>
-            <path d="M8.5 3a5.5 5.5 0 1 0 3.4 9.8l3.6 3.7 1.1-1.1-3.7-3.6A5.5 5.5 0 0 0 8.5 3Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
-          </svg>
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Symbol" aria-label="Symbol" spellCheck={false} />
-        </form>
+        <SymbolSearch symbol={symbol} onSymbol={onSymbol} />
         <Segmented label="View" options={VIEW_OPTIONS} value={view} onChange={setView} />
-        {view === "chain" && (
-          <Field label="Expiration">
-            <select value={expIndex} onChange={(e) => setExpIndex(Number(e.target.value))}>
-              {expirations.map((x, i) => (
-                <option key={x["expiration-date"]} value={i}>
-                  {formatDate(x["expiration-date"])} · {x["days-to-expiration"]}d{x["expiration-type"] === "Regular" ? " · M" : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
+        {view === "chain" && <ExpirationSelect expirations={expirations} index={expIndex} onChange={setExpIndex} />}
         <Field label="Color by">
           <select value={metric} onChange={(e) => setMetric(e.target.value as MetricKey)}>
             {METRIC_OPTIONS.map((o) => (
@@ -128,10 +95,11 @@ export function OptionChainPage() {
         <span className="toolbar-spacer" />
         <SessionPill info={sessionInfo} />
         <StatusPill status={status} />
+        <RefreshButton onRefresh={refresh} busy={busy} lastUpdate={lastUpdate} now={now} />
       </div>
 
       <div className="summary">
-        <QuoteCard symbol={symbol} spot={spotInfo} session={sessionInfo.session} loadingYahoo={yahoo.isFetching} yahooError={yahoo.isError} />
+        <QuoteCard symbol={symbol} spot={spotInfo} session={sessionInfo.session} loadingYahoo={underlying.yahooLoading} yahooError={underlying.yahooError} />
         <div className="stats-row">
           <Stat label="IV index" value={ivIndex != null ? pct(ivIndex) : undefined} sub="30-day implied" />
           <Stat label="IV rank" value={ivRank != null ? pct(ivRank, 0) : undefined}>
@@ -168,52 +136,6 @@ export function OptionChainPage() {
   );
 }
 
-/* ================================================================ Quote card */
-
-function QuoteCard({ symbol, spot, session, loadingYahoo, yahooError }: { symbol: string; spot: Spot; session: Session; loadingYahoo: boolean; yahooError: boolean }) {
-  const change = spot.price != null && spot.prevClose ? spot.price - spot.prevClose : undefined;
-  const changePct = change != null && spot.prevClose ? change / spot.prevClose : undefined;
-  const tone = change == null ? "" : change >= 0 ? "up" : "down";
-  const closedNote = session === "closed" && spot.source !== "live quote" ? " · last session" : "";
-
-  return (
-    <section className={`quote-card ${tone ? `tone-${tone}` : ""}`}>
-      <div className="quote-top">
-        <span className="quote-symbol">{symbol}</span>
-        {spot.source && (
-          <span className={`source-tag ${spot.source === "Yahoo Finance" ? "ext" : ""}`} title="Where this price comes from">
-            {spot.source}
-            {closedNote}
-          </span>
-        )}
-      </div>
-      <div className="quote-main">
-        <Flash value={spot.price} className="quote-price">
-          {spot.price != null ? spot.price.toFixed(2) : loadingYahoo ? "Loading…" : "–"}
-        </Flash>
-        {change != null && changePct != null && (
-          <span className={`change-chip ${tone}`}>
-            {change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(2)} ({change >= 0 ? "+" : ""}
-            {pct(changePct, 2)})
-          </span>
-        )}
-      </div>
-      <div className="quote-foot">
-        {spot.bid != null && spot.ask != null ? (
-          <span className="muted">
-            Bid {spot.bid.toFixed(2)} · Ask {spot.ask.toFixed(2)}
-          </span>
-        ) : spot.price == null && yahooError ? (
-          <span className="down">No price from tastytrade or Yahoo Finance</span>
-        ) : (
-          <span className="muted">{spot.prevClose ? `Prev close ${spot.prevClose.toFixed(2)}` : ""}</span>
-        )}
-        <RangeBar low={spot.dayLow} high={spot.dayHigh} value={spot.price} />
-      </div>
-    </section>
-  );
-}
-
 /* ================================================================ Chain view */
 
 type ColKey = "volume" | "openInterest" | "iv" | "delta" | "bid" | "ask";
@@ -221,50 +143,10 @@ const CALL_COLS: ColKey[] = ["volume", "openInterest", "iv", "delta", "bid", "as
 const PUT_COLS: ColKey[] = ["bid", "ask", "delta", "iv", "openInterest", "volume"];
 const COL_LABEL: Record<ColKey, string> = { volume: "Volume", openInterest: "Open int", iv: "IV", delta: "Delta", bid: "Bid", ask: "Ask" };
 
-interface SideCell {
-  bid?: number;
-  ask?: number;
-  iv?: number;
-  delta?: number;
-  openInterest?: number;
-  volume?: number;
-  /** IV/delta estimated locally from the mid price because the stream sent no greeks. */
-  estimated: boolean;
-  itm: boolean;
-}
-
-function sideCell(streamer: string, type: Side, strike: number, spot: number | undefined, t: number, latest: Map<string, MarketEvent>): SideCell {
-  const q = latest.get(`Quote:${streamer}`);
-  const g = latest.get(`Greeks:${streamer}`);
-  const bid = positive(q?.bidPrice);
-  const ask = positive(q?.askPrice);
-  let iv = positive(g?.volatility);
-  let delta = num(g?.delta) ?? undefined;
-  let estimated = false;
-
-  if ((iv == null || delta == null) && spot && t > 0 && bid != null && ask != null) {
-    const vol = impliedVol((bid + ask) / 2, { type, spot, strike, t, rate: RISK_FREE_RATE });
-    if (Number.isFinite(vol)) {
-      iv ??= vol;
-      delta ??= greeks({ type, spot, strike, t, vol, rate: RISK_FREE_RATE }).delta;
-      estimated = true;
-    }
-  }
-
-  return {
-    bid,
-    ask,
-    iv,
-    delta,
-    openInterest: num(latest.get(`Summary:${streamer}`)?.openInterest) ?? undefined,
-    volume: num(latest.get(`Trade:${streamer}`)?.dayVolume) ?? undefined,
-    estimated,
-    itm: spot != null && (type === "call" ? strike < spot : strike > spot),
-  };
-}
+type SideCell = OptionQuote;
 
 function heatValue(cell: SideCell, metric: MetricKey): number | undefined {
-  const v = cell[metric];
+  const v = cell[metric as keyof Pick<SideCell, MetricKey>];
   return v == null ? undefined : metric === "delta" ? Math.abs(v) : v;
 }
 
@@ -295,8 +177,8 @@ function ChainTable({
     () =>
       rows.map((r) => ({
         row: r,
-        call: sideCell(r.callStreamer, "call", r.strike, spot, t, latest),
-        put: sideCell(r.putStreamer, "put", r.strike, spot, t, latest),
+        call: optionQuote(latest, r.callStreamer, "call", r.strike, spot, t),
+        put: optionQuote(latest, r.putStreamer, "put", r.strike, spot, t),
       })),
     [rows, spot, t, latest],
   );
@@ -555,36 +437,7 @@ function Heatmap({
   );
 }
 
-/* ================================================================ hooks & helpers */
-
-/** Re-evaluates the US equity session every 30 seconds. */
-function useSession(): SessionInfo {
-  const [info, setInfo] = useState(() => usEquitySession());
-  useEffect(() => {
-    const id = setInterval(() => setInfo(usEquitySession()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-  return info;
-}
-
-/** True once `condition` has held for `ms` without interruption. Resets when `resetKey` changes. */
-function useStuck(condition: boolean, ms: number, resetKey: string): boolean {
-  const [stuck, setStuck] = useState(false);
-  useEffect(() => {
-    setStuck(false);
-    if (!condition) return;
-    const id = setTimeout(() => setStuck(true), ms);
-    return () => clearTimeout(id);
-  }, [condition, ms, resetKey]);
-  return stuck;
-}
-
-const rowsCache = new WeakMap<NestedExpiration, ChainRow[]>();
-function toRowsCached(exp: NestedExpiration): ChainRow[] {
-  let r = rowsCache.get(exp);
-  if (!r) rowsCache.set(exp, (r = toRows(exp)));
-  return r;
-}
+/* ================================================================ helpers */
 
 function latticeSymbols(l: Lattice, side: Side): string[] {
   return l.columns.flatMap((c) =>
@@ -594,18 +447,4 @@ function latticeSymbols(l: Lattice, side: Side): string[] {
       return s ? [s] : [];
     }),
   );
-}
-
-function positive(v: unknown): number | undefined {
-  const n = num(v);
-  return n != null && n > 0 ? n : undefined;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(`${iso}T12:00:00Z`);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
-}
-
-function formatStrike(k: number): string {
-  return Number.isInteger(k) ? String(k) : k.toFixed(2).replace(/0$/, "");
 }

@@ -5,7 +5,7 @@
  * and volume are synthetic (clustered near the money and at round strikes).
  */
 import { greeks, yearsToExpiry } from "./analytics/blackScholes";
-import type { CustomerAccount, MarketDataSnapshot, MarketMetric, NestedExpiration, NestedOptionChain, Position } from "./api/types";
+import type { MarketDataSnapshot, MarketMetric, NestedExpiration, NestedOptionChain } from "./api/types";
 import type { MarketEvent, Subscription } from "./streaming/dxlink";
 
 export const DEMO = typeof location !== "undefined" && new URLSearchParams(location.search).has("demo");
@@ -174,20 +174,4 @@ function openInterest(c: Contract, m: number, t: number, symbol: string): number
 
 function ev(eventType: MarketEvent["eventType"], eventSymbol: string, fields: Record<string, number>): MarketEvent {
   return { eventType, eventSymbol, ...fields } as MarketEvent;
-}
-
-export const demoAccounts: CustomerAccount[] = [
-  { account: { "account-number": "5WT00001", nickname: "Demo margin", "account-type-name": "Individual" }, "authority-level": "owner" },
-];
-
-export function demoPositions(): Position[] {
-  const exp = nextFridays(5)[3]!;
-  const yymmdd = exp.slice(2).replace(/-/g, "");
-  const opt = (type: "C" | "P", k: number) => `SPY   ${yymmdd}${type}${String(k * 1000).padStart(8, "0")}`;
-  return [
-    { "account-number": "5WT00001", symbol: "SPY", "instrument-type": "Equity", "underlying-symbol": "SPY", quantity: 100, "quantity-direction": "Long", "average-open-price": 571.2, "close-price": 689.81, multiplier: 1 },
-    { "account-number": "5WT00001", symbol: opt("C", 710), "instrument-type": "Equity Option", "underlying-symbol": "SPY", quantity: 1, "quantity-direction": "Short", "average-open-price": 4.1, "close-price": 3.25, multiplier: 100, "expires-at": exp },
-    { "account-number": "5WT00001", symbol: opt("P", 660), "instrument-type": "Equity Option", "underlying-symbol": "SPY", quantity: 2, "quantity-direction": "Short", "average-open-price": 3.6, "close-price": 2.4, multiplier: 100, "expires-at": exp },
-    { "account-number": "5WT00001", symbol: opt("P", 650), "instrument-type": "Equity Option", "underlying-symbol": "SPY", quantity: 2, "quantity-direction": "Long", "average-open-price": 2.55, "close-price": 1.7, multiplier: 100, "expires-at": exp },
-  ];
 }

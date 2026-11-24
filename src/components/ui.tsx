@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import type { NestedExpiration } from "../api/types";
 import type { SessionInfo } from "../analytics/market";
-import { HEAT_STEPS, type HeatScale } from "../analytics/metrics";
+import { formatDate, HEAT_STEPS, type HeatScale } from "../analytics/metrics";
 
 /* ------------------------------------------------------------- Segmented */
 
@@ -202,5 +203,72 @@ export function RangeBar({ low, high, value }: { low?: number; high?: number; va
       </span>
       <span className="range-end">{high.toFixed(2)}</span>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- Symbol search */
+
+/** Ticker box. Keeps its own draft text and commits an upper-cased symbol on Enter. */
+export function SymbolSearch({ symbol, onSymbol }: { symbol: string; onSymbol: (s: string) => void }) {
+  const [draft, setDraft] = useState(symbol);
+  useEffect(() => setDraft(symbol), [symbol]);
+  return (
+    <form
+      className="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const next = draft.trim().toUpperCase();
+        if (next && next !== symbol) onSymbol(next);
+      }}
+    >
+      <svg viewBox="0 0 20 20" aria-hidden>
+        <path d="M8.5 3a5.5 5.5 0 1 0 3.4 9.8l3.6 3.7 1.1-1.1-3.7-3.6A5.5 5.5 0 0 0 8.5 3Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+      </svg>
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Symbol" aria-label="Symbol" spellCheck={false} />
+    </form>
+  );
+}
+
+/* ------------------------------------------------------------- Expiration picker */
+
+export function ExpirationSelect({ expirations, index, onChange }: { expirations: NestedExpiration[]; index: number; onChange: (i: number) => void }) {
+  return (
+    <Field label="Expiration">
+      <select value={index} onChange={(e) => onChange(Number(e.target.value))}>
+        {expirations.map((x, i) => (
+          <option key={x["expiration-date"]} value={i}>
+            {formatDate(x["expiration-date"])} · {x["days-to-expiration"]}d{x["expiration-type"] === "Regular" ? " · M" : ""}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+/* ------------------------------------------------------------- Refresh */
+
+function ago(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`;
+}
+
+export function RefreshButton({ onRefresh, busy, lastUpdate, now }: { onRefresh: () => void; busy: boolean; lastUpdate: number | null; now: number }) {
+  return (
+    <button
+      type="button"
+      className={`refresh-btn ${busy ? "busy" : ""}`}
+      onClick={onRefresh}
+      title="Reload the chain, IV metrics and price, and reconnect the live stream"
+    >
+      <svg viewBox="0 0 20 20" aria-hidden>
+        <path d="M15.6 7A6 6 0 1 0 16 11.5" />
+        <path d="M16 3v4h-4" />
+      </svg>
+      Refresh
+      <span className="refresh-ago">{lastUpdate ? ago(now - lastUpdate) : "no data yet"}</span>
+    </button>
   );
 }

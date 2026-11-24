@@ -38,7 +38,8 @@ same-origin. Everything else (UI, greeks, IV, chain processing) runs in the brow
 
 **No credentials yet?** Open http://localhost:5173/?demo for simulated data
 (Black-Scholes prices, synthetic open interest and volume). `?demo&view=heatmap`
-and `?demo&page=positions` open the other views directly.
+and `?demo&page=strategy` (optionally `&strategy=long-call|short-call|long-put|short-put`)
+open the other views directly.
 
 Local dev needs no Cloudflare account. The Worker runs inside the Vite dev server,
 and secrets stay in `.env` on your machine.
@@ -104,14 +105,14 @@ Limits to know about:
 ```
 worker/            Cloudflare Worker: OAuth token refresh, Access check, read-only proxy
 src/api/           fetch client, tastytrade types, TanStack Query hooks
-src/analytics/     Black-Scholes, greeks, implied vol, chain transforms (pure + tested)
+src/analytics/     Black-Scholes, greeks, IV, payoff/probability math, chain transforms (pure + tested)
 src/streaming/     DXLink WebSocket client for live quotes/greeks
-src/pages/         Option chain, Positions
+src/pages/         Option chain + heatmap, Strategy (payoff, strike ladder)
 .claude/           Claude Code settings + secret-protection hook
 ```
 
 ## Status
 
-The chain and positions views are wired to real endpoint shapes but **not yet
+The chain and strategy views are wired to real endpoint shapes but **not yet
 verified against a live account**. Check `src/api/types.ts` and the DXLink field
 order against your first real responses.

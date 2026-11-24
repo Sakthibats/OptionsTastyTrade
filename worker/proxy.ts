@@ -10,12 +10,12 @@ import { getAccessToken, invalidateAccessToken } from "./tastytrade-auth";
  * Reference: https://developer.tastytrade.com/reference/
  */
 const SYM = "[A-Za-z0-9.]+"; // equities like AAPL, BRK.B
-const ACCT = "[A-Za-z0-9]+";
 
+/**
+ * Market data only: the app reads no account data (positions, balances,
+ * transactions), so those endpoints stay closed too.
+ */
 export const ALLOWED_GET_PATHS: RegExp[] = [
-  /^\/customers\/me\/accounts$/,
-  new RegExp(`^/accounts/${ACCT}/(positions|balances)$`),
-  new RegExp(`^/accounts/${ACCT}/transactions$`),
   new RegExp(`^/option-chains/${SYM}(/nested|/compact)?$`),
   /^\/market-metrics$/, // ?symbols=AAPL,SPY — IV rank, IV percentile, etc.
   /^\/market-data\/by-type$/,

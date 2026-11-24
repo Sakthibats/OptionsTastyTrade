@@ -111,3 +111,28 @@ export function mid(q?: MarketEvent): number | undefined {
   const a = num(q?.askPrice);
   return b != null && a != null && a > 0 ? (a + b) / 2 : undefined;
 }
+
+export function formatDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+export function formatStrike(k: number): string {
+  return Number.isInteger(k) ? String(k) : k.toFixed(2).replace(/0$/, "");
+}
+
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const USD2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "$1,234" (or "$12.50" under $100), "Unlimited" for ±Infinity. `signed` adds +/−. */
+export function usd(v: number, signed = false): string {
+  if (!Number.isFinite(v)) return "Unlimited";
+  const s = Math.abs(v) < 100 ? USD2.format(Math.abs(v)) : USD.format(Math.abs(v));
+  if (v < 0) return `−${s}`;
+  return signed && v > 0 ? `+${s}` : s;
+}
+
+export function signedPct(v: number, digits = 1): string {
+  if (!Number.isFinite(v)) return "∞";
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(digits)}%`;
+}

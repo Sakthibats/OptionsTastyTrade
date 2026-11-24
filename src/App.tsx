@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { DEMO } from "./demo";
 import { OptionChainPage } from "./pages/OptionChainPage";
-import { PositionsPage } from "./pages/PositionsPage";
+import { StrategyPage } from "./pages/StrategyPage";
 
 const PAGES = {
-  chain: { label: "Options", Component: OptionChainPage },
-  positions: { label: "Positions", Component: PositionsPage },
+  chain: { label: "Chain", Component: OptionChainPage },
+  strategy: { label: "Strategy", Component: StrategyPage },
 } as const;
 
 type PageKey = keyof typeof PAGES;
 
 export function App() {
-  const [page, setPage] = useState<PageKey>(() => (new URLSearchParams(location.search).get("page") === "positions" ? "positions" : "chain"));
+  const [page, setPage] = useState<PageKey>(() => (new URLSearchParams(location.search).get("page") === "strategy" ? "strategy" : "chain"));
+  // The symbol is shared, so switching tabs keeps you on the same underlying.
+  const [symbol, setSymbol] = useState(() => new URLSearchParams(location.search).get("symbol")?.toUpperCase() || "SPY");
   const { Component } = PAGES[page];
 
   return (
@@ -37,7 +39,7 @@ export function App() {
         </div>
       </header>
       <main className="content">
-        <Component />
+        <Component symbol={symbol} onSymbol={setSymbol} />
       </main>
     </div>
   );
